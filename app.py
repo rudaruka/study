@@ -55,10 +55,17 @@ if 'is_study' not in st.session_state:
 if 'owned_items' not in st.session_state:
     st.session_state.owned_items = set()
     
+# NEW: 사용자가 설정한 전체 시간 (분)
 if 'study_duration' not in st.session_state:
     st.session_state.study_duration = 25
 if 'break_duration' not in st.session_state:
     st.session_state.break_duration = 5
+    
+# NEW: 현재 남은 시간 (초) - 중지 시 이 값을 저장합니다.
+if 'remaining_study_seconds' not in st.session_state:
+    st.session_state.remaining_study_seconds = st.session_state.study_duration * 60
+if 'remaining_break_seconds' not in st.session_state:
+    st.session_state.remaining_break_seconds = st.session_state.break_duration * 60
 
 
 # --- 3. 테마 적용 함수 ---
@@ -96,13 +103,25 @@ def buy_shop_logic(item_key, item_info):
                 st.error("잔액이 부족합니다.")
 
 
-# --- 5. 타이머 로직 함수 ---
+# --- 5. 타이머 로직 함수 (수정됨) ---
 
-def run_timer(duration_minutes, is_study_session=True):
-    total_seconds = duration_minutes * 60
+def run_timer(is_study_session=True):
+    # 사용할 남은 시간 상태 변수 키를 결정
+    if is_study_session:
+        session_key = 'remaining_study_seconds'
+        duration_key = 'study_duration'
+    else:
+        session_key = 'remaining_break_seconds'
+        duration_key = 'break_duration'
+        
+    current_seconds = st.session_state[session_key] # 저장된 남은 시간부터 시작
     timer_placeholder = st.empty()
     
-    for i in range(total_seconds, 0, -1):
+    # 남은 시간부터 0까지 카운트다운
+    for i in range(current_seconds, 0, -1):
+        # NEW: 다음 초에 남을 시간을 세션 상태에 저장 (중지 시 이 값이 보존됨)
+        st.session_state[session_key] = i - 1 
+
         minutes, seconds = divmod(i, 60)
         
         color = "red" if is_study_session else "blue"
@@ -111,15 +130,19 @@ def run_timer(duration_minutes, is_study_session=True):
         
         time.sleep(1)
         
-    # **수정**: 타이머가 완료되면 is_running만 False로 바꾸고, 다음 세션 버튼이 tab_timer에 나타나도록 합니다.
-    st.session_state.is_running = False 
+    # --- 타이머 완료 로직 ---
+    st.session_state.is_running = False
     
     if is_study_session:
-        reward = duration_minutes * 40 
+        # 완료 시 보상 지급 (사용자가 설정한 전체 시간 기준으로 계산)
+        reward = st.session_state[duration_key] * 40 
         st.balloons() 
-        st.success(f"🥳 {duration_minutes}분 공부 완료! **{reward} 코인** 지급!")
+        st.success(f"🥳 {st.session_state[duration_key]}분 공부 완료! **{reward} 코인** 지급!")
         st.session_state.coins += reward
         st.session_state.is_study = False # 다음은 휴식 세션
+        
+        # 완료되었으므로 남은 시간을 전체 시간으로 초기화
+        st.session_state.remaining_study_seconds = st.session_state.study_duration * 60
         
         if 'retro_alarm' in st.session_state.owned_items:
              st.info("🚨 레트로 알림 소리 띠리리링!")
@@ -127,10 +150,21 @@ def run_timer(duration_minutes, is_study_session=True):
              st.info("🔔 기본 알림이 울립니다.")
              
     else:
-        st.info(f"✅ {duration_minutes}분 휴식 끝!")
+        st.info(f"✅ {st.session_state[duration_key]}분 휴식 끝!")
         st.session_state.is_study = True # 다음은 공부 세션
         
-    st.rerun() # 화면 전환을 위해 새로고침
+        # 완료되었으므로 남은 시간을 전체 시간으로 초기화
+        st.session_state.remaining_break_seconds = st.session_state.break_duration * 60
+        
+    st.rerun() # 상태 업데이트 및 화면 전환
+
+
+# NEW: 슬라이더 변경 시 남은 시간도 초기화하는 함수
+def update_durations():
+    # 설정 시간 변경 시, 남은 시간을 새로운 설정 시간(초)으로 초기화
+    st.session_state.remaining_study_seconds = st.session_state.study_duration * 60
+    st.session_state.remaining_break_seconds = st.session_state.break_duration * 60
+    st.session_state.is_study = True # 설정 변경 시 순서를 공부로 리셋
 
 
 # --- 6. 메인 앱 레이아웃 ---
@@ -143,31 +177,49 @@ tab_timer, tab_shop = st.tabs(["⏱️ 타이머", "🛒 상점"])
 # --- 6.1 타이머 탭 (재시작 로직 강화) ---
 with tab_timer:
     
-    # 타이머가 실행 중이 아닐 때 설정 슬라이더와 다음 세션 시작 버튼을 표시합니다.
+    # 타이머가 실행 중이 아닐 때만 설정 슬라이더와 시작 버튼을 표시합니다.
     if not st.session_state.is_running:
         
-        # 설정 슬라이더는 is_running이 False일 때만 표시됩니다.
+        # 슬라이더 값이 변경되면 update_durations 함수를 호출합니다.
+        # study_duration 상태 변수를 슬라이더에 직접 연결
         st.session_state.study_duration = st.slider(
             "공부 시간 설정 (분)", 
             min_value=5, max_value=60, 
             value=st.session_state.study_duration, step=5, 
-            key='slider_study'
+            key='slider_study',
+            on_change=update_durations # 슬라이더 값 변경 시 초기화 함수 호출
         )
+        # break_duration 상태 변수를 슬라이더에 직접 연결
         st.session_state.break_duration = st.slider(
             "휴식 시간 설정 (분)", 
             min_value=1, max_value=15, 
             value=st.session_state.break_duration, step=1,
-            key='slider_break'
+            key='slider_break',
+            on_change=update_durations # 슬라이더 값 변경 시 초기화 함수 호출
         )
         st.divider()
 
-        # **수정**: is_study 상태에 따라 버튼 텍스트를 변경합니다.
+        # 현재 상태에 따른 남은 시간 확인
         if st.session_state.is_study:
-            button_text = f"▶️ {st.session_state.study_duration}분 공부 시작"
-            button_type = "primary"
+            current_remaining = st.session_state.remaining_study_seconds
+            full_duration_seconds = st.session_state.study_duration * 60
         else:
-            button_text = f"☕ {st.session_state.break_duration}분 휴식 시작"
-            button_type = "secondary"
+            current_remaining = st.session_state.remaining_break_seconds
+            full_duration_seconds = st.session_state.break_duration * 60
+
+        # 버튼 텍스트와 타입 결정: 남은 시간이 전체 시간보다 적으면 '이어하기'
+        if current_remaining > 0 and current_remaining < full_duration_seconds:
+            minutes = current_remaining // 60
+            seconds = current_remaining % 60
+            button_text = f"▶️ {minutes}분 {seconds}초 이어하기"
+            button_type = "warning"
+        else:
+            if st.session_state.is_study:
+                button_text = f"▶️ {st.session_state.study_duration}분 공부 시작"
+                button_type = "primary"
+            else:
+                button_text = f"☕ {st.session_state.break_duration}분 휴식 시작"
+                button_type = "secondary"
 
         if st.button(button_text, type=button_type, use_container_width=True):
             st.session_state.is_running = True
@@ -179,15 +231,15 @@ with tab_timer:
         # 타이머 실행 중에는 중지 버튼만 표시
         if st.button("⏹️ 중지하기", use_container_width=True):
             st.session_state.is_running = False
-            st.warning("타이머가 중지되었습니다. 다음 '공부 시작' 버튼을 눌러 초기화하고 다시 시작하세요.")
-            st.session_state.is_study = True # 중지 시에는 다음 세션을 '공부'로 초기화
+            # run_timer 함수 내부에서 이미 남은 시간이 session state에 저장되었으므로, 별도의 저장 로직 불필요
+            st.warning("타이머가 중지되었습니다. '이어하기' 버튼을 눌러 남은 시간을 다시 시작하세요.")
             st.rerun()
             
         # run_timer 함수에 세션 상태에 저장된 값을 전달합니다.
         if st.session_state.is_study:
-            run_timer(st.session_state.study_duration, is_study_session=True)
+            run_timer(is_study_session=True)
         else:
-            run_timer(st.session_state.break_duration, is_study_session=False)
+            run_timer(is_study_session=False)
 
 # --- 6.2 상점 탭 ---
 with tab_shop:
