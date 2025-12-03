@@ -173,7 +173,7 @@ st.header(f"💰 현재 코인: {st.session_state.coins}원")
 
 tab_timer, tab_shop = st.tabs(["⏱️ 타이머", "🛒 상점"])
 
-# --- 6.1 타이머 탭 (st.empty()를 사용하여 안정화) ---
+# --- 6.1 타이머 탭 (st.empty()를 사용하여 안정화 및 신규 버튼 추가) ---
 with tab_timer:
     
     # 슬라이더 컨테이너를 먼저 확보합니다.
@@ -187,6 +187,7 @@ with tab_timer:
     # 1. 타이머가 실행 중이 아닐 때: 설정 슬라이더와 시작/이어하기 버튼 표시
     if not st.session_state.is_running:
         
+        # 슬라이더 표시 (타이머가 멈춰있을 때만)
         with slider_placeholder.container():
             st.session_state.study_duration = st.slider(
                 "공부 시간 설정 (분)", 
@@ -203,6 +204,7 @@ with tab_timer:
                 on_change=update_durations
             )
         
+        # 현재 남은 시간 확인
         if st.session_state.is_study:
             current_remaining = st.session_state.remaining_study_seconds
             full_duration_seconds = st.session_state.study_duration * 60
@@ -210,12 +212,30 @@ with tab_timer:
             current_remaining = st.session_state.remaining_break_seconds
             full_duration_seconds = st.session_state.break_duration * 60
 
-        # 버튼 텍스트와 타입 결정: 남은 시간이 전체 시간보다 적으면 '이어하기'
+        # --- Case 1: 마저 하기(Resume) + 시간 초기화(Reset) 버튼 표시 ---
         if current_remaining > 0 and current_remaining < full_duration_seconds:
             minutes = current_remaining // 60
             seconds = current_remaining % 60
-            button_text = f"▶️ {minutes}분 {seconds}초 이어하기"
-            button_type = "warning"
+            resume_button_text = f"▶️ {minutes}분 {seconds}초 마저 하기"
+            
+            # 버튼 영역을 2개 컬럼으로 분할
+            with button_placeholder.container():
+                col_reset, col_resume = st.columns(2)
+            
+                # 1. 시간 초기화 버튼
+                if col_reset.button("🔄 시간 초기화", use_container_width=True, key='reset_timer_button'):
+                    st.session_state.remaining_study_seconds = st.session_state.study_duration * 60
+                    st.session_state.remaining_break_seconds = st.session_state.break_duration * 60
+                    st.session_state.is_study = True # 다음 세션을 공부로 초기화
+                    st.warning("타이머가 처음 설정 값으로 초기화되었습니다.")
+                    st.rerun()
+    
+                # 2. 마저 하기 버튼 (Resume)
+                if col_resume.button(resume_button_text, type="warning", use_container_width=True, key='start_resume_button'):
+                    st.session_state.is_running = True
+                    st.rerun()
+
+        # --- Case 2: 시작 버튼만 표시 (시간이 가득 찼거나 0일 때) ---
         else:
             if st.session_state.is_study:
                 button_text = f"▶️ {st.session_state.study_duration}분 공부 시작"
@@ -224,10 +244,10 @@ with tab_timer:
                 button_text = f"☕ {st.session_state.break_duration}분 휴식 시작"
                 button_type = "secondary"
 
-        # 버튼을 고정된 button_placeholder 안에 그립니다.
-        if button_placeholder.button(button_text, type=button_type, use_container_width=True, key='start_resume_button'):
-            st.session_state.is_running = True
-            st.rerun()
+            # 버튼을 고정된 button_placeholder 안에 그립니다.
+            if button_placeholder.button(button_text, type=button_type, use_container_width=True, key='start_resume_button'):
+                st.session_state.is_running = True
+                st.rerun()
             
     # 2. 타이머가 실행 중일 때: 중지 버튼만 표시하고 타이머 실행
     else: # st.session_state.is_running == True
@@ -238,7 +258,7 @@ with tab_timer:
         # 중지 버튼을 고정된 button_placeholder 안에 그립니다.
         if button_placeholder.button("⏹️ 중지하기", use_container_width=True, key='stop_timer_button'):
             st.session_state.is_running = False
-            st.warning("타이머가 중지되었습니다. '이어하기' 버튼을 눌러 남은 시간을 다시 시작하세요.")
+            st.warning("타이머가 중지되었습니다. '마저 하기' 버튼을 눌러 남은 시간을 다시 시작하세요.")
             st.rerun()
             
         # run_timer 함수 호출 (타이머 카운트다운 시작)
