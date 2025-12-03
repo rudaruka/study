@@ -168,7 +168,7 @@ def update_durations():
 
 # --- 6. 메인 앱 레이아웃 ---
 
-st.title("📚 뽀모도로 & 코인 리워드 앱")
+st.title("📚 공부법은 위대하다!")
 st.header(f"💰 현재 코인: {st.session_state.coins}원")
 
 tab_timer, tab_shop = st.tabs(["⏱️ 타이머", "🛒 상점"])
@@ -190,14 +190,14 @@ with tab_timer:
         # 슬라이더 표시 (타이머가 멈춰있을 때만)
         with slider_placeholder.container():
             st.session_state.study_duration = st.slider(
-                "공부 시간 설정 (분)", 
+                "공부 시간 설정 (분) * 한번 설정시 타이머가 끝날때까지 변경하지 마세요 *", 
                 min_value=5, max_value=60, 
                 value=st.session_state.study_duration, step=5, 
                 key='slider_study',
                 on_change=update_durations
             )
             st.session_state.break_duration = st.slider(
-                "휴식 시간 설정 (분)", 
+                "휴식 시간 설정 (분) * 한번 설정시 타이머가 끝날때까지 변경하지 마세요 *", 
                 min_value=1, max_value=15, 
                 value=st.session_state.break_duration, step=1,
                 key='slider_break',
