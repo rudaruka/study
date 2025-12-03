@@ -3,7 +3,6 @@ import time
 
 # --- 1. 테마 및 아이템 정의 (중앙 집중식 데이터) ---
 
-# 테마 스타일 정의: 아이템 키, 가격, 설명, 적용될 CSS 내용을 포함합니다.
 THEME_STYLES = {
     'dark_mode': {
         'name': '다크 모드', 
@@ -38,12 +37,10 @@ THEME_STYLES = {
     }
 }
 
-# 보조 아이템 (디자인 외 기능)
 OTHER_ITEMS = {
     'retro_alarm': {'name': '레트로 알림', 'price': 3000, 'effect': '종료 알림 소리를 레트로 스타일로 바꿉니다.'}
 }
 
-# 상점에서 판매할 모든 아이템을 합칩니다.
 SHOP_ITEMS = {**THEME_STYLES, **OTHER_ITEMS}
 
 
@@ -58,19 +55,15 @@ if 'is_study' not in st.session_state:
 if 'owned_items' not in st.session_state:
     st.session_state.owned_items = set()
     
-# NEW: 타이머가 시작되어 슬라이더가 숨겨진 후에도 값을 유지하기 위해 세션 상태에 저장
 if 'study_duration' not in st.session_state:
     st.session_state.study_duration = 25
 if 'break_duration' not in st.session_state:
     st.session_state.break_duration = 5
 
 
-# --- 3. 테마 적용 함수 (CSS 병합 로직) ---
+# --- 3. 테마 적용 함수 ---
 
 def apply_theme():
-    """
-    구매된 모든 테마 아이템의 CSS를 병합하여 한 번에 적용합니다.
-    """
     full_css = ""
     for item_key in st.session_state.owned_items:
         if item_key in THEME_STYLES:
@@ -79,7 +72,6 @@ def apply_theme():
     if full_css:
         st.markdown(f"<style>{full_css}</style>", unsafe_allow_html=True)
 
-# 앱 시작 시 테마를 즉시 적용합니다.
 apply_theme()
 
 
@@ -117,17 +109,17 @@ def run_timer(duration_minutes, is_study_session=True):
         status_text = "📚 공부 중" if is_study_session else "☕ 휴식 중"
         timer_placeholder.markdown(f"## <span style='color:{color};'>{status_text}</span> 남은 시간: {minutes:02d}:{seconds:02d}", unsafe_allow_html=True)
         
-        # time.sleep()이 실행되는 동안 앱이 멈추기 때문에 '중지하기' 버튼의 즉각적인 반응이 어렵습니다.
         time.sleep(1)
         
-    st.session_state.is_running = False
+    # **수정**: 타이머가 완료되면 is_running만 False로 바꾸고, 다음 세션 버튼이 tab_timer에 나타나도록 합니다.
+    st.session_state.is_running = False 
     
     if is_study_session:
         reward = duration_minutes * 40 
         st.balloons() 
         st.success(f"🥳 {duration_minutes}분 공부 완료! **{reward} 코인** 지급!")
         st.session_state.coins += reward
-        st.session_state.is_study = False 
+        st.session_state.is_study = False # 다음은 휴식 세션
         
         if 'retro_alarm' in st.session_state.owned_items:
              st.info("🚨 레트로 알림 소리 띠리리링!")
@@ -135,10 +127,10 @@ def run_timer(duration_minutes, is_study_session=True):
              st.info("🔔 기본 알림이 울립니다.")
              
     else:
-        st.info(f"✅ {duration_minutes}분 휴식 끝! 다시 공부를 시작하세요.")
-        st.session_state.is_study = True 
+        st.info(f"✅ {duration_minutes}분 휴식 끝!")
+        st.session_state.is_study = True # 다음은 공부 세션
         
-    st.rerun() # 상태 업데이트 및 화면 전환을 위해 새로고침
+    st.rerun() # 화면 전환을 위해 새로고침
 
 
 # --- 6. 메인 앱 레이아웃 ---
@@ -148,17 +140,18 @@ st.header(f"💰 현재 코인: {st.session_state.coins}원")
 
 tab_timer, tab_shop = st.tabs(["⏱️ 타이머", "🛒 상점"])
 
-# --- 6.1 타이머 탭 (수정된 부분) ---
+# --- 6.1 타이머 탭 (재시작 로직 강화) ---
 with tab_timer:
     
-    # 타이머가 실행 중이 아닐 때만 설정 슬라이더와 시작 버튼을 표시합니다.
+    # 타이머가 실행 중이 아닐 때 설정 슬라이더와 다음 세션 시작 버튼을 표시합니다.
     if not st.session_state.is_running:
-        # 슬라이더 값이 변경되면 세션 상태에 즉시 저장됩니다.
+        
+        # 설정 슬라이더는 is_running이 False일 때만 표시됩니다.
         st.session_state.study_duration = st.slider(
             "공부 시간 설정 (분)", 
             min_value=5, max_value=60, 
             value=st.session_state.study_duration, step=5, 
-            key='slider_study' # key를 추가하여 명시적인 위젯으로 만듭니다.
+            key='slider_study'
         )
         st.session_state.break_duration = st.slider(
             "휴식 시간 설정 (분)", 
@@ -168,18 +161,26 @@ with tab_timer:
         )
         st.divider()
 
-        if st.button("▶️ 공부/휴식 시작", type="primary", use_container_width=True):
+        # **수정**: is_study 상태에 따라 버튼 텍스트를 변경합니다.
+        if st.session_state.is_study:
+            button_text = f"▶️ {st.session_state.study_duration}분 공부 시작"
+            button_type = "primary"
+        else:
+            button_text = f"☕ {st.session_state.break_duration}분 휴식 시작"
+            button_type = "secondary"
+
+        if st.button(button_text, type=button_type, use_container_width=True):
             st.session_state.is_running = True
             st.rerun()
             
     # 타이머가 실행 중일 때 로직
     if st.session_state.is_running:
         
-        # 중지 버튼만 표시하여 설정을 변경하지 못하게 합니다.
+        # 타이머 실행 중에는 중지 버튼만 표시
         if st.button("⏹️ 중지하기", use_container_width=True):
             st.session_state.is_running = False
-            st.warning("타이머가 중지되었습니다.")
-            st.session_state.is_study = True 
+            st.warning("타이머가 중지되었습니다. 다음 '공부 시작' 버튼을 눌러 초기화하고 다시 시작하세요.")
+            st.session_state.is_study = True # 중지 시에는 다음 세션을 '공부'로 초기화
             st.rerun()
             
         # run_timer 함수에 세션 상태에 저장된 값을 전달합니다.
