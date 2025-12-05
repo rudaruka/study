@@ -8,7 +8,7 @@ import time
 THEME_STYLES = {
     'dark_mode': {
         'name': '다크 모드', 
-        'price': 5, 
+        'price': 5000, 
         'effect': '앱 배경을 어둡게 바꿉니다.',
         'css': """
             .main { background-color: #1E1E1E; color: #FFFFFF; } 
@@ -18,7 +18,7 @@ THEME_STYLES = {
     },
     'forest_theme': {
         'name': '🌳 포레스트 테마', 
-        'price': 8, 
+        'price': 8000, 
         'effect': '편안한 녹색 계열 테마를 적용합니다.',
         'css': """
             .main { background-color: #E8F5E9; color: #1B5E20; }
@@ -29,18 +29,34 @@ THEME_STYLES = {
     },
     'sky_theme': {
         'name': '☁️ 스카이 테마', 
-        'price': 1, 
+        'price': 10000, 
         'effect': '시원한 파란색 계열 테마를 적용합니다.',
         'css': """
             .main { background-color: #E3F2FD; color: #1565C0; }
             h2, h3, h4 { color: #1E88E5 !important; }
             .stButton>button { background-color: #90CAF9; color: #000000; }
         """
+    },
+    # **[추가됨]** 별이 빛나는 밤 테마
+    'starry_background': {
+        'name': '🌌 별이 빛나는 밤', 
+        'price': 12000, 
+        'effect': '밤하늘을 연상시키는 그라데이션 배경을 적용합니다.',
+        'css': """
+            .main { 
+                background: linear-gradient(to top right, #0F2027, #203A43, #2C5364); 
+                color: #E0E0E0; 
+            }
+            h2, h3, h4 { color: #ADD8E6 !important; }
+            .stButton>button { border: 1px solid #778899; }
+        """
     }
 }
 
 OTHER_ITEMS = {
-    'retro_alarm': {'name': '레트로 알림', 'price': 3000, 'effect': '종료 알림 소리를 레트로 스타일로 바꿉니다.'}
+    'retro_alarm': {'name': '레트로 알림', 'price': 3000, 'effect': '종료 알림 소리를 레트로 스타일로 바꿉니다.'},
+    # **[추가됨]** 황금 폰트 아이템
+    'golden_font': {'name': '🏆 황금 폰트', 'price': 4000, 'effect': '타이머 글자 색을 황금색으로 바꿉니다.'}
 }
 
 
@@ -57,7 +73,7 @@ if 'is_study' not in st.session_state:
     st.session_state.is_study = True # True: 공부, False: 휴식
 if 'owned_items' not in st.session_state:
     st.session_state.owned_items = set()
-# **[추가됨]** 현재 활성화된 테마 키 (기본값: None)
+# 현재 활성화된 테마 키 (기본값: None)
 if 'active_theme' not in st.session_state:
     st.session_state.active_theme = None 
 
@@ -96,7 +112,7 @@ def update_durations():
 # ----------------------------------------------------
 
 def apply_theme():
-    """**[수정됨]** 현재 활성화된 테마만 확인하여 CSS를 적용합니다."""
+    """현재 활성화된 테마만 확인하여 CSS를 적용합니다."""
     full_css = ""
     active_key = st.session_state.active_theme
     
@@ -150,6 +166,7 @@ def buy_shop_logic(item_key, item_info):
                     toggle_theme(item_key)
                 st.caption("소유 중")
         else:
+            # 테마가 아닌 기타 아이템 (레트로 알림, 황금 폰트)
             st.success("✅ 소유 중")
             
     # 소유하지 않은 경우: 구매 버튼 표시
@@ -169,7 +186,7 @@ def buy_shop_logic(item_key, item_info):
 
 
 # ----------------------------------------------------
-# --- 5. 타이머 로직 함수 (변경 없음) ---
+# --- 5. 타이머 로직 함수 (Golden Font 적용 로직 추가) ---
 # ----------------------------------------------------
 
 def run_timer(is_study_session=True):
@@ -184,12 +201,20 @@ def run_timer(is_study_session=True):
     current_seconds = st.session_state[session_key] 
     timer_placeholder = st.empty()
     
+    # **[추가됨]** 황금 폰트 아이템 적용 여부 확인
+    is_golden = 'golden_font' in st.session_state.owned_items
+
     for i in range(current_seconds, 0, -1):
         st.session_state[session_key] = i - 1 
 
         minutes, seconds = divmod(i, 60)
         
-        color = "red" if is_study_session else "blue"
+        # **[수정됨]** 폰트 색상 로직 적용
+        if is_golden:
+            color = "#FFD700" # 황금색 적용
+        else:
+            color = "red" if is_study_session else "blue" # 기본 색상 적용
+            
         status_text = "📚 공부 중" if is_study_session else "☕ 휴식 중"
         timer_placeholder.markdown(f"## <span style='color:{color};'>{status_text}</span> 남은 시간: {minutes:02d}:{seconds:02d}", unsafe_allow_html=True)
         
@@ -221,7 +246,7 @@ def run_timer(is_study_session=True):
 
 
 # ----------------------------------------------------
-# --- 6. 메인 앱 레이아웃 (버튼 키 오류 방지를 위해 키 세분화) ---
+# --- 6. 메인 앱 레이아웃 (변경 없음) ---
 # ----------------------------------------------------
 
 st.title("📚 공부법은 위대하다!")
@@ -283,7 +308,6 @@ with tab_timer:
                     st.warning("타이머가 처음 설정 값으로 초기화되었습니다.")
                     st.rerun()
     
-                # 버튼 키를 세분화하여 충돌 방지
                 if col_resume.button(resume_button_text, type="warning", use_container_width=True, key=f'resume_{session_name}_button'):
                     st.session_state.is_running = True
                     st.rerun()
@@ -297,7 +321,6 @@ with tab_timer:
                 button_text = f"☕ {st.session_state.break_duration}분 휴식 시작"
                 button_key = 'start_break_initial_button'
 
-            # 버튼 키를 세분화하여 충돌 방지
             if button_placeholder.button(button_text, type=button_type, use_container_width=True, key=button_key):
                 st.session_state.is_running = True
                 st.rerun()
