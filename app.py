@@ -8,7 +8,7 @@ import time
 THEME_STYLES = {
     'dark_mode': {
         'name': '다크 모드', 
-        'price': 5000, 
+        'price': 5, 
         'effect': '앱 배경을 어둡게 바꿉니다.',
         'css': """
             .main { background-color: #1E1E1E; color: #FFFFFF; } 
@@ -18,7 +18,7 @@ THEME_STYLES = {
     },
     'forest_theme': {
         'name': '🌳 포레스트 테마', 
-        'price': 8000, 
+        'price': 8, 
         'effect': '편안한 녹색 계열 테마를 적용합니다.',
         'css': """
             .main { background-color: #E8F5E9; color: #1B5E20; }
@@ -29,7 +29,7 @@ THEME_STYLES = {
     },
     'sky_theme': {
         'name': '☁️ 스카이 테마', 
-        'price': 10000, 
+        'price': 1, 
         'effect': '시원한 파란색 계열 테마를 적용합니다.',
         'css': """
             .main { background-color: #E3F2FD; color: #1565C0; }
