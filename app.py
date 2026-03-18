@@ -1,369 +1,602 @@
 import streamlit as st
 import time
+from datetime import date, datetime
 
-# ----------------------------------------------------
-# --- 1. 테마 및 아이템 정의 (중앙 집중식 데이터) ---
-# ----------------------------------------------------
+# =====================================================
+# 1. 데이터 정의
+# =====================================================
 
 THEME_STYLES = {
     'dark_mode': {
-        'name': '다크 모드', 
-        'price': 5000, 
+        'name': '🌙 다크 모드',
+        'price': 5000,
         'effect': '앱 배경을 어둡게 바꿉니다.',
         'css': """
-            .main { background-color: #1E1E1E; color: #FFFFFF; } 
+            .main { background-color: #1E1E1E !important; color: #FFFFFF; }
             h2, h3, h4 { color: #CCCCCC !important; }
             .stButton>button { border: 1px solid #555555; }
         """
     },
     'forest_theme': {
-        'name': '🌳 포레스트 테마', 
-        'price': 8000, 
+        'name': '🌳 포레스트 테마',
+        'price': 8000,
         'effect': '편안한 녹색 계열 테마를 적용합니다.',
         'css': """
-            .main { background-color: #E8F5E9; color: #1B5E20; }
+            .main { background-color: #E8F5E9 !important; color: #1B5E20; }
             h2, h3, h4 { color: #388E3C !important; }
-            .stSlider > div > div:nth-child(1) { background-color: #81C784 !important; }
             .stTextInput>div>div>input { border-color: #4CAF50; }
         """
     },
     'sky_theme': {
-        'name': '☁️ 스카이 테마', 
-        'price': 10000, 
+        'name': '☁️ 스카이 테마',
+        'price': 10000,
         'effect': '시원한 파란색 계열 테마를 적용합니다.',
         'css': """
-            .main { background-color: #E3F2FD; color: #1565C0; }
+            .main { background-color: #E3F2FD !important; color: #1565C0; }
             h2, h3, h4 { color: #1E88E5 !important; }
             .stButton>button { background-color: #90CAF9; color: #000000; }
         """
     },
-    # **[추가됨]** 별이 빛나는 밤 테마
     'starry_background': {
-        'name': '🌌 별이 빛나는 밤', 
-        'price': 12000, 
+        'name': '🌌 별이 빛나는 밤',
+        'price': 12000,
         'effect': '밤하늘을 연상시키는 그라데이션 배경을 적용합니다.',
         'css': """
-            .main { 
-                background: linear-gradient(to top right, #0F2027, #203A43, #2C5364); 
-                color: #E0E0E0; 
+            .main {
+                background: linear-gradient(to top right, #0F2027, #203A43, #2C5364) !important;
+                color: #E0E0E0;
             }
             h2, h3, h4 { color: #ADD8E6 !important; }
             .stButton>button { border: 1px solid #778899; }
+        """
+    },
+    'cherry_blossom': {
+        'name': '🌸 벚꽃 테마',
+        'price': 9000,
+        'effect': '포근한 벚꽃빛 핑크 테마를 적용합니다.',
+        'css': """
+            .main { background-color: #FFF0F5 !important; color: #880E4F; }
+            h2, h3, h4 { color: #C2185B !important; }
+            .stButton>button { background-color: #F8BBD9; color: #880E4F; }
         """
     }
 }
 
 OTHER_ITEMS = {
-    'retro_alarm': {'name': '레트로 알림', 'price': 3000, 'effect': '종료 알림 소리를 레트로 스타일로 바꿉니다.'},
-    # **[추가됨]** 황금 폰트 아이템
-    'golden_font': {'name': '🏆 황금 폰트', 'price': 4000, 'effect': '타이머 글자 색을 황금색으로 바꿉니다.'}
+    'retro_alarm': {'name': '🔔 레트로 알림', 'price': 3000, 'effect': '종료 알림 소리를 레트로 스타일로 바꿉니다.'},
+    'golden_font': {'name': '🏆 황금 폰트', 'price': 4000, 'effect': '타이머 글자 색을 황금색으로 바꿉니다.'},
+    'double_coin': {'name': '💎 코인 2배', 'price': 15000, 'effect': '공부 완료 시 코인을 2배로 받습니다.'},
+    'focus_bgm': {'name': '🎵 집중 BGM', 'price': 6000, 'effect': '타이머 실행 중 집중 BGM 이모지를 표시합니다.'},
 }
 
+# 업적 정의
+ACHIEVEMENTS = {
+    'first_study':   {'name': '🎓 첫 걸음',      'desc': '첫 번째 공부 세션 완료', 'condition': lambda s: s['total_sessions'] >= 1,   'reward': 1000},
+    'five_sessions': {'name': '🔥 5연속 집중',    'desc': '총 5번 공부 완료',       'condition': lambda s: s['total_sessions'] >= 5,   'reward': 3000},
+    'ten_sessions':  {'name': '💪 10번 도전',     'desc': '총 10번 공부 완료',      'condition': lambda s: s['total_sessions'] >= 10,  'reward': 5000},
+    'one_hour':      {'name': '⏰ 1시간 돌파',    'desc': '총 공부 시간 60분 달성', 'condition': lambda s: s['total_minutes'] >= 60,   'reward': 2000},
+    'five_hours':    {'name': '🌟 5시간 달성',    'desc': '총 공부 시간 300분 달성','condition': lambda s: s['total_minutes'] >= 300,  'reward': 8000},
+    'ten_hours':     {'name': '👑 10시간 마스터',  'desc': '총 공부 시간 600분 달성','condition': lambda s: s['total_minutes'] >= 600,  'reward': 20000},
+    'coin_100':      {'name': '💰 코인 부자',     'desc': '코인 총 100개 적립',     'condition': lambda s: s['total_coins_earned'] >= 100, 'reward': 500},
+    'coin_1000':     {'name': '🏦 코인 만 부자',  'desc': '코인 총 1000개 적립',    'condition': lambda s: s['total_coins_earned'] >= 1000,'reward': 2000},
+    'pomodoro_4':    {'name': '🍅 뽀모도로 4세트','desc': '4세트 사이클 완료',      'condition': lambda s: s['completed_cycles'] >= 1,  'reward': 4000},
+    'daily_3':       {'name': '📅 오늘 3번 완료', 'desc': '하루에 3번 공부 완료',   'condition': lambda s: s['today_sessions'] >= 3,    'reward': 1500},
+}
 
-# ----------------------------------------------------
-# --- 2. 초기 설정 및 상태 관리 ---
-# ----------------------------------------------------
+# =====================================================
+# 2. 초기 상태 설정
+# =====================================================
 
-# 초기값 설정 (코인, 실행 상태, 현재 세션 종류, 소유 아이템)
-if 'coins' not in st.session_state:
-    st.session_state.coins = 0
-if 'is_running' not in st.session_state:
-    st.session_state.is_running = False
-if 'is_study' not in st.session_state:
-    st.session_state.is_study = True # True: 공부, False: 휴식
-if 'owned_items' not in st.session_state:
-    st.session_state.owned_items = set()
-# 현재 활성화된 테마 키 (기본값: None)
-if 'active_theme' not in st.session_state:
-    st.session_state.active_theme = None 
+defaults = {
+    'coins': 0,
+    'is_running': False,
+    'is_study': True,
+    'owned_items': set(),
+    'active_theme': None,
+    'study_duration': 25,
+    'break_duration': 5,
+    'long_break_duration': 15,
+    'sessions_before_long_break': 4,
+    'current_cycle_count': 0,   # 현재 사이클 내 완료한 공부 횟수
+    'completed_cycles': 0,      # 완성된 전체 사이클 수
+    # 통계
+    'total_sessions': 0,
+    'total_minutes': 0,
+    'total_coins_earned': 0,
+    'today_sessions': 0,
+    'today_minutes': 0,
+    'last_date': str(date.today()),
+    'daily_history': {},        # {"2024-01-01": {"sessions": N, "minutes": M}}
+    'session_log': [],          # [{"time": "HH:MM", "duration": N, "type": "study"}]
+    # 업적
+    'unlocked_achievements': set(),
+    # 사이클 모드 여부
+    'cycle_mode': True,
+}
 
-# 사용자가 설정한 전체 시간 (분) - 기본값은 25분, 5분 유지
-if 'study_duration' not in st.session_state:
-    st.session_state.study_duration = 25
-if 'break_duration' not in st.session_state:
-    st.session_state.break_duration = 5
-    
-# 현재 남은 시간 (초) - 초기 로드 시 설정값에 따라 남은 시간 초기화
+for key, val in defaults.items():
+    if key not in st.session_state:
+        st.session_state[key] = val
+
+# 날짜 바뀌면 오늘 통계 리셋
+today_str = str(date.today())
+if st.session_state.last_date != today_str:
+    st.session_state.today_sessions = 0
+    st.session_state.today_minutes = 0
+    st.session_state.last_date = today_str
+
+# =====================================================
+# 3. 유틸리티 함수
+# =====================================================
+
+def apply_theme():
+    active_key = st.session_state.active_theme
+    if active_key and active_key in THEME_STYLES:
+        st.markdown(f"<style>{THEME_STYLES[active_key]['css']}</style>", unsafe_allow_html=True)
+
+def update_durations():
+    st.session_state.study_duration = max(1, st.session_state.input_study)
+    st.session_state.break_duration = max(1, st.session_state.input_break)
+    st.session_state.remaining_study_seconds = int(st.session_state.study_duration * 60)
+    st.session_state.remaining_break_seconds = int(st.session_state.break_duration * 60)
+    st.session_state.is_study = True
+
+def check_achievements():
+    """업적 달성 여부 확인 후 보상 지급"""
+    newly_unlocked = []
+    stats = {
+        'total_sessions': st.session_state.total_sessions,
+        'total_minutes': st.session_state.total_minutes,
+        'total_coins_earned': st.session_state.total_coins_earned,
+        'today_sessions': st.session_state.today_sessions,
+        'completed_cycles': st.session_state.completed_cycles,
+    }
+    for key, ach in ACHIEVEMENTS.items():
+        if key not in st.session_state.unlocked_achievements:
+            if ach['condition'](stats):
+                st.session_state.unlocked_achievements.add(key)
+                st.session_state.coins += ach['reward']
+                st.session_state.total_coins_earned += ach['reward']
+                newly_unlocked.append(ach)
+    return newly_unlocked
+
+def toggle_theme(item_key):
+    if st.session_state.active_theme == item_key:
+        st.session_state.active_theme = None
+    else:
+        st.session_state.active_theme = item_key
+    apply_theme()
+    st.rerun()
+
+def buy_shop_logic(item_key, item_info):
+    is_owned = item_key in st.session_state.owned_items
+    is_theme = item_key in THEME_STYLES
+
+    if is_owned:
+        if is_theme:
+            is_active = st.session_state.active_theme == item_key
+            if is_active:
+                if st.button("해제 ❌", key=f"deactivate_{item_key}", use_container_width=True):
+                    toggle_theme(item_key)
+                st.success("✅ 적용 중")
+            else:
+                if st.button("적용 👍", key=f"activate_{item_key}", use_container_width=True, type="primary"):
+                    toggle_theme(item_key)
+                st.caption("소유 중")
+        else:
+            st.success("✅ 소유 중")
+    else:
+        if st.button(f"구매 {item_info['price']}원", key=f"buy_{item_key}", use_container_width=True):
+            if st.session_state.coins >= item_info['price']:
+                st.session_state.coins -= item_info['price']
+                st.session_state.owned_items.add(item_key)
+                if is_theme:
+                    st.session_state.active_theme = item_key
+                st.success(f"{item_info['name']} 구매 완료!")
+                st.rerun()
+            else:
+                st.error("잔액이 부족합니다.")
+
+def get_next_session_type():
+    """다음 세션이 짧은 휴식인지 긴 휴식인지 반환"""
+    if not st.session_state.cycle_mode:
+        return 'short_break'
+    count = st.session_state.current_cycle_count + 1  # 완료 후 카운트
+    if count >= st.session_state.sessions_before_long_break:
+        return 'long_break'
+    return 'short_break'
+
+# =====================================================
+# 4. 남은 시간 초기화 (세션 상태에 없을 때만)
+# =====================================================
+
 if 'remaining_study_seconds' not in st.session_state:
     st.session_state.remaining_study_seconds = st.session_state.study_duration * 60
 if 'remaining_break_seconds' not in st.session_state:
     st.session_state.remaining_break_seconds = st.session_state.break_duration * 60
+if 'remaining_long_break_seconds' not in st.session_state:
+    st.session_state.remaining_long_break_seconds = st.session_state.long_break_duration * 60
+# is_long_break 상태 추가
+if 'is_long_break' not in st.session_state:
+    st.session_state.is_long_break = False
 
+# =====================================================
+# 5. 타이머 로직
+# =====================================================
 
-def update_durations():
-    """설정 시간 변경 시, 남은 시간을 새로운 설정 시간(초)으로 초기화하고 공부 세션으로 리셋합니다."""
-    
-    # 입력 값 유효성 검사: 최소값 1분 미만 입력 방지 (안정성 강화)
-    new_study_duration = max(1, st.session_state.input_study)
-    new_break_duration = max(1, st.session_state.input_break)
-    
-    # 세션 상태에 반영
-    st.session_state.study_duration = new_study_duration
-    st.session_state.break_duration = new_break_duration
-    
-    # 남은 시간(초) 초기화
-    st.session_state.remaining_study_seconds = int(new_study_duration * 60)
-    st.session_state.remaining_break_seconds = int(new_break_duration * 60)
-    st.session_state.is_study = True # 설정 변경 시 순서를 공부로 리셋
-
-
-# ----------------------------------------------------
-# --- 3. 테마 적용 함수 ---
-# ----------------------------------------------------
-
-def apply_theme():
-    """현재 활성화된 테마만 확인하여 CSS를 적용합니다."""
-    full_css = ""
-    active_key = st.session_state.active_theme
-    
-    # active_theme이 설정되어 있고, 해당 키가 테마 목록에 있을 경우에만 CSS 적용
-    if active_key and active_key in THEME_STYLES:
-        full_css = THEME_STYLES[active_key]['css']
-            
-    if full_css:
-        st.markdown(f"<style>{full_css}</style>", unsafe_allow_html=True)
-
-# 앱 시작 시 테마 적용
-apply_theme()
-
-
-# ----------------------------------------------------
-# --- 4. 상점 구매 및 테마 활성화/해제 로직 함수 ---
-# ----------------------------------------------------
-
-def toggle_theme(item_key):
-    """테마를 활성화하거나 해제하는 함수"""
-    if st.session_state.active_theme == item_key:
-        # 이미 활성화된 테마를 누른 경우, 해제하고 기본 테마로 돌아감
-        st.session_state.active_theme = None
-        st.info("테마가 해제되었습니다. (기본 테마 적용)")
-    else:
-        # 다른 테마를 누른 경우, 해당 테마를 활성화
-        st.session_state.active_theme = item_key
-        st.success(f"'{THEME_STYLES[item_key]['name']}' 테마가 적용되었습니다. 🎨")
-        
-    apply_theme() # 변경된 active_theme에 따라 CSS 재적용
-    st.rerun()
-
-def buy_shop_logic(item_key, item_info):
-    """상점에서 아이템을 구매하거나 적용/해제 로직을 처리합니다."""
-    is_owned = item_key in st.session_state.owned_items
-    is_theme = item_key in THEME_STYLES
-    
-    # 소유 중인 경우 (테마인 경우 적용/해제 버튼 표시)
-    if is_owned:
-        if is_theme:
-            is_active = st.session_state.active_theme == item_key
-            
-            if is_active:
-                # 현재 적용 중인 경우 -> 해제 버튼
-                if st.button("해제하기 ❌", key=f"deactivate_{item_key}", use_container_width=True):
-                    toggle_theme(item_key)
-                st.success("✅ 현재 적용 중")
-            else:
-                # 소유했지만 적용 중이 아닌 경우 -> 적용 버튼
-                if st.button("적용하기 👍", key=f"activate_{item_key}", use_container_width=True, type="primary"):
-                    toggle_theme(item_key)
-                st.caption("소유 중")
-        else:
-            # 테마가 아닌 기타 아이템 (레트로 알림, 황금 폰트)
-            st.success("✅ 소유 중")
-            
-    # 소유하지 않은 경우: 구매 버튼 표시
-    else:
-        if st.button("구매", key=f"buy_{item_key}", use_container_width=True):
-            if st.session_state.coins >= item_info['price']:
-                st.session_state.coins -= item_info['price']
-                st.session_state.owned_items.add(item_key)
-                st.success(f"{item_info['name']} 구매 완료!")
-                
-                # 테마 아이템 구매 시, 즉시 활성화
-                if is_theme:
-                    st.session_state.active_theme = item_key # 구매 후 바로 적용
-                st.rerun() # UI 업데이트
-            else:
-                st.error("잔액이 부족합니다.")
-
-
-# ----------------------------------------------------
-# --- 5. 타이머 로직 함수 (Golden Font 적용 로직 추가) ---
-# ----------------------------------------------------
-
-def run_timer(is_study_session=True):
-    """실제로 카운트다운을 수행하고 타이머 완료 후 보상 및 세션을 전환하는 함수입니다."""
+def run_timer(is_study_session=True, is_long_break=False):
     if is_study_session:
         session_key = 'remaining_study_seconds'
         duration_key = 'study_duration'
+    elif is_long_break:
+        session_key = 'remaining_long_break_seconds'
+        duration_key = 'long_break_duration'
     else:
         session_key = 'remaining_break_seconds'
         duration_key = 'break_duration'
-        
-    current_seconds = st.session_state[session_key] 
+
+    current_seconds = st.session_state[session_key]
     timer_placeholder = st.empty()
-    
-    # **[추가됨]** 황금 폰트 아이템 적용 여부 확인
+    progress_placeholder = st.empty()
+
     is_golden = 'golden_font' in st.session_state.owned_items
+    has_bgm = 'focus_bgm' in st.session_state.owned_items
+    total_seconds = st.session_state[duration_key] * 60
 
     for i in range(current_seconds, 0, -1):
-        st.session_state[session_key] = i - 1 
-
+        st.session_state[session_key] = i - 1
         minutes, seconds = divmod(i, 60)
-        
-        # **[수정됨]** 폰트 색상 로직 적용
+
         if is_golden:
-            color = "#FFD700" # 황금색 적용
+            color = "#FFD700"
+        elif is_study_session:
+            color = "#FF4B4B"
+        elif is_long_break:
+            color = "#7B2FBE"
         else:
-            color = "red" if is_study_session else "blue" # 기본 색상 적용
-            
-        status_text = "📚 공부 중" if is_study_session else "☕ 휴식 중"
-        timer_placeholder.markdown(f"## <span style='color:{color};'>{status_text}</span> 남은 시간: {minutes:02d}:{seconds:02d}", unsafe_allow_html=True)
-        
+            color = "#1E88E5"
+
+        if is_study_session:
+            status_text = "📚 공부 중"
+            if has_bgm:
+                status_text += " 🎵"
+        elif is_long_break:
+            status_text = "🛌 긴 휴식 중"
+        else:
+            status_text = "☕ 휴식 중"
+
+        progress = (total_seconds - i) / total_seconds
+        progress_placeholder.progress(progress)
+        timer_placeholder.markdown(
+            f"<h2 style='text-align:center; color:{color};'>{status_text}</h2>"
+            f"<h1 style='text-align:center; color:{color}; font-size:72px;'>{minutes:02d}:{seconds:02d}</h1>",
+            unsafe_allow_html=True
+        )
         time.sleep(1)
-        
+
     st.session_state.is_running = False
-    
+
+    # --- 공부 완료 ---
     if is_study_session:
-        reward = int(st.session_state[duration_key] * 40)
-        st.balloons() 
-        st.success(f"🥳 {st.session_state[duration_key]}분 공부 완료! **{reward} 코인** 지급!")
+        duration_val = st.session_state[duration_key]
+        base_reward = int(duration_val * 40)
+        is_double = 'double_coin' in st.session_state.owned_items
+        reward = base_reward * 2 if is_double else base_reward
+
         st.session_state.coins += reward
-        st.session_state.is_study = False
-        
+        st.session_state.total_coins_earned += reward
+        st.session_state.total_sessions += 1
+        st.session_state.total_minutes += duration_val
+        st.session_state.today_sessions += 1
+        st.session_state.today_minutes += duration_val
+
+        # 사이클 관리
+        st.session_state.current_cycle_count += 1
+        if st.session_state.current_cycle_count >= st.session_state.sessions_before_long_break:
+            st.session_state.is_long_break = True
+            st.session_state.current_cycle_count = 0
+            st.session_state.completed_cycles += 1
+        else:
+            st.session_state.is_long_break = False
+
+        # 일별 기록 저장
+        today = str(date.today())
+        if today not in st.session_state.daily_history:
+            st.session_state.daily_history[today] = {'sessions': 0, 'minutes': 0}
+        st.session_state.daily_history[today]['sessions'] += 1
+        st.session_state.daily_history[today]['minutes'] += duration_val
+
+        # 세션 로그
+        st.session_state.session_log.append({
+            'time': datetime.now().strftime("%H:%M"),
+            'duration': duration_val,
+            'type': 'study'
+        })
+
+        st.balloons()
+        reward_text = f"**{reward} 코인** 지급!" + (" (2배!💎)" if is_double else "")
+        st.success(f"🥳 {duration_val}분 공부 완료! {reward_text}")
+
+        # 업적 확인
+        newly = check_achievements()
+        for ach in newly:
+            st.toast(f"🏆 업적 달성: {ach['name']} (+{ach['reward']}코인)", icon="🎉")
+
         if 'retro_alarm' in st.session_state.owned_items:
-            st.info("🚨 레트로 알림 소리 띠리리링!")
+            st.info("🚨 레트로 알림 띠리리링!")
         else:
             st.info("🔔 기본 알림이 울립니다.")
-            
+
+        st.session_state.is_study = False
         st.session_state.remaining_study_seconds = int(st.session_state.study_duration * 60)
-        
-    else: 
-        st.info(f"✅ {st.session_state[duration_key]}분 휴식 끝!")
+
+    # --- 휴식 완료 ---
+    else:
+        break_type = "긴 휴식" if is_long_break else "휴식"
+        st.info(f"✅ {st.session_state[duration_key]}분 {break_type} 끝! 다시 집중해볼까요? 💪")
         st.session_state.is_study = True
-        
-        st.session_state.remaining_break_seconds = int(st.session_state.break_duration * 60)
-        
+        st.session_state.is_long_break = False
+        if is_long_break:
+            st.session_state.remaining_long_break_seconds = int(st.session_state.long_break_duration * 60)
+        else:
+            st.session_state.remaining_break_seconds = int(st.session_state.break_duration * 60)
+
     st.rerun()
 
+# =====================================================
+# 6. 메인 레이아웃
+# =====================================================
 
-# ----------------------------------------------------
-# --- 6. 메인 앱 레이아웃 (변경 없음) ---
-# ----------------------------------------------------
+apply_theme()
 
 st.title("📚 공부법은 위대하다!")
-st.header(f"💰 현재 코인: {st.session_state.coins}원")
 
-tab_timer, tab_shop = st.tabs(["⏱️ 타이머", "🛒 상점"])
+# 상단 핵심 지표
+col_coin, col_session, col_cycle, col_today = st.columns(4)
+with col_coin:
+    st.metric("💰 코인", f"{st.session_state.coins:,}원")
+with col_session:
+    st.metric("📖 총 세션", f"{st.session_state.total_sessions}회")
+with col_cycle:
+    st.metric("🍅 완료 사이클", f"{st.session_state.completed_cycles}세트")
+with col_today:
+    st.metric("📅 오늘 공부", f"{st.session_state.today_minutes}분")
 
-# --- 6.1 타이머 탭 ---
+# 사이클 진행 표시
+if st.session_state.cycle_mode:
+    cycle_count = st.session_state.current_cycle_count
+    total_in_cycle = st.session_state.sessions_before_long_break
+    st.markdown("**현재 사이클 진행:**")
+    cycle_icons = ""
+    for i in range(total_in_cycle):
+        if i < cycle_count:
+            cycle_icons += "🍅 "
+        else:
+            cycle_icons += "⬜ "
+    st.markdown(f"{cycle_icons}  ← {total_in_cycle}개 완료 시 🛌 긴 휴식")
+
+st.divider()
+
+tab_timer, tab_stats, tab_achievements, tab_shop = st.tabs(["⏱️ 타이머", "📊 통계", "🏆 업적", "🛒 상점"])
+
+# =====================================================
+# 타이머 탭
+# =====================================================
 with tab_timer:
-    
+
     input_placeholder = st.empty()
     button_placeholder = st.empty()
     st.divider()
-    
+
     if not st.session_state.is_running:
-        
+
         with input_placeholder.container():
-            st.number_input(
-                "📚 공부 시간 설정 (분) * 1분 이상 입력하세요. *", 
-                min_value=1, max_value=180, 
-                value=int(st.session_state.study_duration), step=1, 
-                key='input_study', 
-                on_change=update_durations,
-                format="%d"
-            )
-            st.number_input(
-                "☕ 휴식 시간 설정 (분) * 1분 이상 입력하세요. *", 
-                min_value=1, max_value=30, 
-                value=int(st.session_state.break_duration), step=1,
-                key='input_break', 
-                on_change=update_durations,
-                format="%d"
-            )
-        
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.number_input(
+                    "📚 공부 시간 (분)", min_value=1, max_value=180,
+                    value=int(st.session_state.study_duration), step=1,
+                    key='input_study', on_change=update_durations, format="%d"
+                )
+            with c2:
+                st.number_input(
+                    "☕ 짧은 휴식 (분)", min_value=1, max_value=30,
+                    value=int(st.session_state.break_duration), step=1,
+                    key='input_break', on_change=update_durations, format="%d"
+                )
+            with c3:
+                st.number_input(
+                    "🛌 긴 휴식 (분)", min_value=5, max_value=60,
+                    value=int(st.session_state.long_break_duration), step=5,
+                    key='input_long_break',
+                    on_change=lambda: setattr(st.session_state, 'long_break_duration', max(5, st.session_state.input_long_break)),
+                    format="%d"
+                )
+
+            col_mode, col_cycle_set = st.columns(2)
+            with col_mode:
+                st.session_state.cycle_mode = st.toggle("🔄 사이클 모드 (긴 휴식 자동 전환)", value=st.session_state.cycle_mode)
+            with col_cycle_set:
+                if st.session_state.cycle_mode:
+                    st.session_state.sessions_before_long_break = st.number_input(
+                        "🍅 긴 휴식까지 세션 수", min_value=2, max_value=8,
+                        value=st.session_state.sessions_before_long_break, step=1, format="%d"
+                    )
+
+        # 현재 세션 상태
         if st.session_state.is_study:
             current_remaining = st.session_state.remaining_study_seconds
             full_duration_seconds = st.session_state.study_duration * 60
             session_name = "공부"
             button_type = "primary"
+        elif st.session_state.is_long_break:
+            current_remaining = st.session_state.remaining_long_break_seconds
+            full_duration_seconds = st.session_state.long_break_duration * 60
+            session_name = "긴 휴식"
+            button_type = "secondary"
         else:
             current_remaining = st.session_state.remaining_break_seconds
             full_duration_seconds = st.session_state.break_duration * 60
             session_name = "휴식"
             button_type = "secondary"
 
-        # --- Case 1: 마저 하기(Resume) + 시간 초기화(Reset) 버튼 표시 ---
         if current_remaining > 0 and current_remaining < full_duration_seconds:
             minutes = current_remaining // 60
             seconds = current_remaining % 60
-            resume_button_text = f"▶️ {session_name} {minutes}분 {seconds}초 마저 하기"
-            
+            resume_text = f"▶️ {session_name} {minutes}분 {seconds}초 마저 하기"
+
             with button_placeholder.container():
                 col_reset, col_resume = st.columns(2)
-            
-                if col_reset.button("🔄 시간 초기화", use_container_width=True, key='reset_timer_button'):
+                if col_reset.button("🔄 초기화", use_container_width=True, key='reset_timer_button'):
                     st.session_state.remaining_study_seconds = int(st.session_state.study_duration * 60)
                     st.session_state.remaining_break_seconds = int(st.session_state.break_duration * 60)
+                    st.session_state.remaining_long_break_seconds = int(st.session_state.long_break_duration * 60)
                     st.session_state.is_study = True
-                    st.warning("타이머가 처음 설정 값으로 초기화되었습니다.")
+                    st.session_state.is_long_break = False
+                    st.session_state.current_cycle_count = 0
+                    st.warning("타이머가 초기화되었습니다.")
                     st.rerun()
-    
-                if col_resume.button(resume_button_text, type="warning", use_container_width=True, key=f'resume_{session_name}_button'):
+                if col_resume.button(resume_text, type="warning", use_container_width=True, key='resume_button'):
                     st.session_state.is_running = True
                     st.rerun()
-
-        # --- Case 2: 시작 버튼만 표시 (시간이 가득 찼거나 0일 때) ---
         else:
             if st.session_state.is_study:
-                button_text = f"▶️ {st.session_state.study_duration}분 공부 시작"
-                button_key = 'start_study_initial_button'
+                btn_text = f"▶️ {st.session_state.study_duration}분 공부 시작"
+                btn_key = 'start_study_button'
+            elif st.session_state.is_long_break:
+                btn_text = f"🛌 {st.session_state.long_break_duration}분 긴 휴식 시작"
+                btn_key = 'start_long_break_button'
             else:
-                button_text = f"☕ {st.session_state.break_duration}분 휴식 시작"
-                button_key = 'start_break_initial_button'
+                btn_text = f"☕ {st.session_state.break_duration}분 휴식 시작"
+                btn_key = 'start_break_button'
 
-            if button_placeholder.button(button_text, type=button_type, use_container_width=True, key=button_key):
+            if button_placeholder.button(btn_text, type=button_type, use_container_width=True, key=btn_key):
                 st.session_state.is_running = True
                 st.rerun()
-            
-    # 2. 타이머가 실행 중일 때: 중지 버튼만 표시하고 타이머 실행
-    else: 
-        
+
+    else:
         input_placeholder.empty()
 
         if button_placeholder.button("⏹️ 중지하기", use_container_width=True, key='stop_timer_button'):
             st.session_state.is_running = False
-            st.warning("타이머가 중지되었습니다. '마저 하기' 버튼을 눌러 남은 시간을 다시 시작하세요.")
+            st.warning("타이머가 중지되었습니다.")
             st.rerun()
-            
+
         if st.session_state.is_study:
             run_timer(is_study_session=True)
+        elif st.session_state.is_long_break:
+            run_timer(is_study_session=False, is_long_break=True)
         else:
-            run_timer(is_study_session=False)
+            run_timer(is_study_session=False, is_long_break=False)
 
-# --- 6.2 상점 탭 ---
+# =====================================================
+# 통계 탭
+# =====================================================
+with tab_stats:
+    st.subheader("📊 나의 공부 통계")
+
+    # 전체 통계
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("총 세션", f"{st.session_state.total_sessions}회")
+    with col2:
+        hours = st.session_state.total_minutes // 60
+        mins = st.session_state.total_minutes % 60
+        st.metric("총 공부 시간", f"{hours}시간 {mins}분")
+    with col3:
+        st.metric("완료 사이클", f"{st.session_state.completed_cycles}세트")
+    with col4:
+        st.metric("총 획득 코인", f"{st.session_state.total_coins_earned:,}원")
+
+    st.divider()
+
+    # 오늘 통계
+    st.markdown("### 📅 오늘의 기록")
+    col_t1, col_t2 = st.columns(2)
+    with col_t1:
+        st.metric("오늘 완료 세션", f"{st.session_state.today_sessions}회")
+    with col_t2:
+        t_hours = st.session_state.today_minutes // 60
+        t_mins = st.session_state.today_minutes % 60
+        st.metric("오늘 공부 시간", f"{t_hours}시간 {t_mins}분")
+
+    st.divider()
+
+    # 최근 세션 로그
+    st.markdown("### 📋 최근 세션 기록")
+    if st.session_state.session_log:
+        log_data = list(reversed(st.session_state.session_log[-10:]))
+        for entry in log_data:
+            st.markdown(f"- **{entry['time']}** — {entry['duration']}분 공부 완료")
+    else:
+        st.info("아직 완료한 세션이 없어요. 지금 시작해볼까요? 🚀")
+
+    st.divider()
+
+    # 일별 기록
+    st.markdown("### 📆 일별 기록")
+    if st.session_state.daily_history:
+        for day, data in sorted(st.session_state.daily_history.items(), reverse=True)[:7]:
+            h = data['minutes'] // 60
+            m = data['minutes'] % 60
+            bar_len = min(data['sessions'], 10)
+            bar = "🟩" * bar_len + "⬜" * (10 - bar_len)
+            st.markdown(f"**{day}** | {data['sessions']}세션 | {h}시간 {m}분  \n{bar}")
+    else:
+        st.info("아직 기록이 없습니다.")
+
+# =====================================================
+# 업적 탭
+# =====================================================
+with tab_achievements:
+    st.subheader("🏆 업적")
+
+    unlocked = st.session_state.unlocked_achievements
+    total = len(ACHIEVEMENTS)
+    done = len(unlocked)
+
+    st.progress(done / total)
+    st.markdown(f"**{done} / {total}** 업적 달성")
+    st.divider()
+
+    for key, ach in ACHIEVEMENTS.items():
+        col_a, col_b = st.columns([4, 1])
+        with col_a:
+            if key in unlocked:
+                st.markdown(f"✅ **{ach['name']}** — {ach['desc']}")
+            else:
+                st.markdown(f"🔒 ~~{ach['name']}~~ — {ach['desc']}")
+        with col_b:
+            reward_text = f"+{ach['reward']:,}원"
+            if key in unlocked:
+                st.success(reward_text)
+            else:
+                st.caption(reward_text)
+
+# =====================================================
+# 상점 탭
+# =====================================================
 with tab_shop:
-    st.subheader("아이템 상점")
-    
-    # 테마 아이템 표시
+    st.subheader("🛒 아이템 상점")
+    st.caption(f"현재 잔액: **{st.session_state.coins:,}원**")
+
     st.markdown("### 🖼️ 테마 및 디자인")
     for item_key, item_info in THEME_STYLES.items():
         col1, col2 = st.columns([3, 1])
         with col1:
-            # 현재 적용 중인 테마에 대한 시각적 피드백
             status_emoji = "✨" if st.session_state.active_theme == item_key else ""
-            st.markdown(f"**{item_info['name']} {status_emoji}** ({item_info['price']}원)")
+            st.markdown(f"**{item_info['name']} {status_emoji}** — {item_info['price']:,}원")
             st.caption(item_info['effect'])
         with col2:
             buy_shop_logic(item_key, item_info)
-            
+
     st.markdown("---")
-    
-    # 보조 아이템 표시
+
     st.markdown("### 📢 알림 및 효과")
     for item_key, item_info in OTHER_ITEMS.items():
         col1, col2 = st.columns([3, 1])
         with col1:
-            st.markdown(f"**{item_info['name']}** ({item_info['price']}원)")
+            st.markdown(f"**{item_info['name']}** — {item_info['price']:,}원")
             st.caption(item_info['effect'])
         with col2:
             buy_shop_logic(item_key, item_info)
